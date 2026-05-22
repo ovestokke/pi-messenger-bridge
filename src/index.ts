@@ -176,6 +176,14 @@ export default function (pi: ExtensionAPI): void {
     });
 
     transportManager.onMessage((msg) => {
+      // Emit structured ExternalMessage metadata to global hook before formatting.
+      // This allows other extensions to capture full bridge metadata (user/chat/message
+      // IDs, timestamps, group/mention booleans) without modifying this bridge.
+      // No-op if no hook is registered.
+      if (typeof globalThis.__piHubIngress === "function") {
+        try { globalThis.__piHubIngress(msg); } catch (_e) { /* no-op */ }
+      }
+
       pendingRemoteChat = {
         chatId: msg.chatId,
         transport: msg.transport,
