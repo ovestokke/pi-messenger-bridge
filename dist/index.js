@@ -22,13 +22,29 @@ export default function (pi) {
     let pendingRemoteChat = null;
     let auth;
     let ctx;
+    function safeNotify(message, level = "info") {
+        try {
+            ctx?.ui.notify(message, level);
+        }
+        catch (err) {
+            console.warn("msg-bridge: skipped notification after stale extension context", err);
+        }
+    }
+    function safeSetWidget(content) {
+        try {
+            ctx?.ui.setWidget("msg-bridge-status", content);
+        }
+        catch (err) {
+            console.warn("msg-bridge: skipped widget update after stale extension context", err);
+        }
+    }
     /**
      * Update status widget
      */
     function updateWidget() {
         const config = loadConfig();
         if (config.showWidget === false) {
-            ctx.ui.setWidget("msg-bridge-status", undefined);
+            safeSetWidget(undefined);
             return;
         }
         const stats = auth.getStats();
@@ -40,10 +56,10 @@ export default function (pi) {
         }));
         const widget = createStatusWidget(transports, stats.usersByTransport);
         if (widget) {
-            ctx.ui.setWidget("msg-bridge-status", [widget]);
+            safeSetWidget([widget]);
         }
         else {
-            ctx.ui.setWidget("msg-bridge-status", undefined);
+            safeSetWidget(undefined);
         }
     }
     /**
@@ -61,9 +77,9 @@ export default function (pi) {
         ctx = context;
         const config = loadConfig();
         auth = new ChallengeAuth((code, username) => {
-            ctx.ui.notify(`🔐 Challenge code for @${username}: ${code}`, "info");
+            safeNotify(`🔐 Challenge code for @${username}: ${code}`, "info");
         }, (message, level) => {
-            ctx.ui.notify(message, level);
+            safeNotify(message, level);
         }, async (_chatId, _message) => {
             // Challenge notifications are sent via the transport's sendMessage
         }, saveAuthState);
@@ -117,7 +133,7 @@ export default function (pi) {
             const transports = transportManager.getAllTransports();
             if (transports.length > 0 && config.autoConnect !== false) {
                 if (!acquireLock()) {
-                    ctx.ui.notify("ℹ️ msg-bridge: another instance is already connected — skipping auto-connect", "info");
+                    safeNotify("ℹ️ msg-bridge: another instance is already connected — skipping auto-connect", "info");
                 }
                 else {
                     try {
@@ -126,13 +142,13 @@ export default function (pi) {
                     }
                     catch (err) {
                         releaseLock();
-                        ctx.ui.notify(`⚠️ Some transports failed to connect: ${err.message}`, "warning");
+                        safeNotify(`⚠️ Some transports failed to connect: ${err.message}`, "warning");
                     }
                 }
             }
         })().catch(err => {
             console.error("Transport initialization error:", err);
-            ctx.ui.notify(`❌ Transport initialization failed: ${err.message}`, "error");
+            safeNotify(`❌ Transport initialization failed: ${err.message}`, "error");
         });
         transportManager.onMessage((msg) => {
             // Emit structured ExternalMessage metadata to global hook before formatting.
@@ -155,7 +171,7 @@ export default function (pi) {
             pi.sendUserMessage(taggedMessage, { deliverAs: "followUp" });
         });
         transportManager.onError((err, transport) => {
-            ctx.ui.notify(`❌ ${transport} error: ${err.message}`, "error");
+            safeNotify(`❌ ${transport} error: ${err.message}`, "error");
         });
         updateWidget();
     });
@@ -207,7 +223,7 @@ export default function (pi) {
         }
         catch (err) {
             const transport = pendingRemoteChat?.transport ?? "unknown";
-            ctx.ui.notify(`Failed to send response to ${transport}: ${err.message}`, "error");
+            safeNotify(`Failed to send response to ${transport}: ${err.message}`, "error");
             pendingRemoteChat = null;
         }
     });
