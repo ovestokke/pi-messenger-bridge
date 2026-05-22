@@ -20,7 +20,7 @@
         "test": "vitest run",
         "lint": "biome check src/",
         "lint:fix": "biome check --fix src/",
-        "prepare": "npm run build"
+        "prepare": "test -d dist || npm run build"
     },
     "keywords": [
         "pi-package",
